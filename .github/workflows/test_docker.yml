@@ -1,0 +1,45 @@
+name: Test Docker
+on:
+  push:
+    paths:
+      - '.github/workflows/test_docker.yml'
+      - 'src/Common/Version.props'
+      - '**/*.csproj'
+      - '**/*Dockerfile.*'
+    branches:
+      - main
+      - release-*
+  pull_request:
+    paths:
+      - '.github/workflows/test_docker.yml'
+      - '**/*Dockerfile.*'
+    branches:
+      - main
+      - release-*
+jobs:
+  build:
+    timeout-minutes: 60
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [jammy, noble]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Install prerequisites and download drivers
+      shell: bash
+      run: ./build.sh --download-driver
+    - name: Build Docker image
+      run: bash utils/docker/build.sh --amd64 ${{ matrix.flavor }} playwright-dotnet:localbuild-${{ matrix.flavor }}
+    - name: Cleanup
+      run: dotnet clean src/ || true
+    - name: Test
+      run: |
+        CONTAINER_ID="$(docker run --rm --ipc=host -v $(pwd):/root/playwright --name playwright-docker-test --workdir /root/playwright/ -d -t playwright-dotnet:localbuild-${{ matrix.flavor }} /bin/bash)"
+        docker exec -e BROWSER=chromium "${CONTAINER_ID}" xvfb-run dotnet test ./src/Playwright.Tests/Playwright.Tests.csproj -c Debug --logger:"console;verbosity=detailed"
+        docker exec -e BROWSER=firefox "${CONTAINER_ID}" xvfb-run dotnet test ./src/Playwright.Tests/Playwright.Tests.csproj -c Debug --logger:"console;verbosity=detailed"
+        docker exec -e BROWSER=webkit "${CONTAINER_ID}" xvfb-run dotnet test ./src/Playwright.Tests/Playwright.Tests.csproj -c Debug --logger:"console;verbosity=detailed"
