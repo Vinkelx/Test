@@ -1,0 +1,32 @@
+name: Saucedemo
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Enter Username'
+        required: true
+      password:
+        description: 'Enter Password'
+        required: true
+
+jobs:
+  secure-execution:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Credentials
+        env:
+          INPUT_USERNAME: ${{ github.event.inputs.username }}
+          INPUT_PASSWORD: ${{ github.event.inputs.password }}
+          SECRET_USERNAME: ${{ secrets.USERNAME }}
+          SECRET_PASSWORD: ${{ secrets.PASSWORD }}
+        run: |
+          if [ "$INPUT_USERNAME" != "$SECRET_USERNAME" ] || [ "$INPUT_PASSWORD" != "$SECRET_PASSWORD" ]; then
+            echo "Invalid credentials! Access denied."
+            exit 1
+          else
+            echo "Credentials verified. Proceeding..."
+          fi
+
+      - name: Execute Secure Job
+        run: echo "Running secure job..."
